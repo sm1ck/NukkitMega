@@ -213,14 +213,18 @@ public class ShapedRecipe implements CraftingRecipe {
         //match the given items to the requested items
         for (int y = 0, y2 = this.getHeight(); y < y2; ++y) {
             for (int x = 0, x2 = this.getWidth(); x < x2; ++x) {
-                Item given = input[y][x];
-                Item required = map.get(y).get(x);
+                if (input.length > y) {
+                    if (input[y].length > x) {
+                        Item given = input[y][x];
+                        Item required = map.get(y).get(x);
 
-                if (given == null || !required.equals(given, required.hasMeta(), required.hasCompoundTag()) || required.getCount() != given.getCount()) {
-                    return false;
+                        if (given == null || !required.equals(given, required.hasMeta(), required.hasCompoundTag()) || required.getCount() != given.getCount()) {
+                            return false;
+                        }
+
+                        input[y][x] = null;
+                    }
                 }
-
-                input[y][x] = null;
             }
         }
 
