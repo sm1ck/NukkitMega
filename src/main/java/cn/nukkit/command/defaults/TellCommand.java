@@ -59,8 +59,8 @@ public class TellCommand extends VanillaCommand {
 
         String displayName = (sender instanceof Player ? ((Player) sender).getDisplayName() : sender.getName());
 
-        sender.sendMessage("[" + sender.getName() + " -> " + player.getDisplayName() + "] " + msg);
-        player.sendMessage("[" + displayName + " -> " + player.getName() + "] " + msg);
+        sender.sendMessage("§e§lЛС§r §c| §e§lЯ§r §c➬ §e" + player.getDisplayName() + "§r§c: " + msg);
+        player.sendMessage("§e§lЛС§r §c| §e" + displayName + "§r §c➬ §e§lЯ§r§c: " + msg);
 
         return true;
     }
