@@ -1,11 +1,9 @@
 package cn.nukkit.network.protocol;
 
 import cn.nukkit.command.data.*;
-import cn.nukkit.utils.BinaryStream;
 
 import java.util.*;
-import java.util.function.ObjIntConsumer;
-import java.util.function.ToIntFunction;
+import java.util.stream.Collectors;
 
 /**
  * author: MagicDroidX
@@ -15,37 +13,25 @@ public class AvailableCommandsPacket extends DataPacket {
 
     public static final byte NETWORK_ID = ProtocolInfo.AVAILABLE_COMMANDS_PACKET;
 
-    private static final ObjIntConsumer<BinaryStream> WRITE_BYTE = (s, v) -> s.putByte((byte) v);
-    private static final ObjIntConsumer<BinaryStream> WRITE_SHORT = BinaryStream::putLShort;
-    private static final ObjIntConsumer<BinaryStream> WRITE_INT = BinaryStream::putLInt;
-    private static final ToIntFunction<BinaryStream> READ_BYTE = BinaryStream::getByte;
-    private static final ToIntFunction<BinaryStream> READ_SHORT = BinaryStream::getLShort;
-    private static final ToIntFunction<BinaryStream> READ_INT = BinaryStream::getLInt;
-
     public static final int ARG_FLAG_VALID = 0x100000;
-    public static final int ARG_FLAG_ENUM = 0x200000;
-    public static final int ARG_FLAG_POSTFIX = 0x1000000;
-    public static final int ARG_FLAG_SOFT_ENUM = 0x4000000;
 
     public static final int ARG_TYPE_INT = 0x01;
     public static final int ARG_TYPE_FLOAT = 0x02;
     public static final int ARG_TYPE_VALUE = 0x03;
     public static final int ARG_TYPE_WILDCARD_INT = 0x04;
-    public static final int ARG_TYPE_OPERATOR = 0x05;
-    public static final int ARG_TYPE_TARGET = 0x06;
-    public static final int ARG_TYPE_WILDCARD_TARGET = 0x07;
+    public static final int ARG_TYPE_TARGET = 0x05;
+    public static final int ARG_TYPE_WILDCARD_TARGET = 0x06;
 
-    public static final int ARG_TYPE_FILE_PATH = 0x0e;
+    public static final int ARG_TYPE_STRING = 0x0f;
+    public static final int ARG_TYPE_POSITION = 0x10;
 
-    public static final int ARG_TYPE_INT_RANGE = 0x12;
+    public static final int ARG_TYPE_MESSAGE = 0x13;
+    public static final int ARG_TYPE_RAWTEXT = 0x15;
+    public static final int ARG_TYPE_JSON = 0x18;
+    public static final int ARG_TYPE_COMMAND = 0x1f;
 
-    public static final int ARG_TYPE_STRING = 0x1a;
-    public static final int ARG_TYPE_POSITION = 0x1c;
-
-    public static final int ARG_TYPE_MESSAGE = 0x1f;
-    public static final int ARG_TYPE_RAWTEXT = 0x21;
-    public static final int ARG_TYPE_JSON = 0x24;
-    public static final int ARG_TYPE_COMMAND = 0x2b;
+    public static final int ARG_FLAG_ENUM = 0x200000;
+    public static final int ARG_FLAG_POSTFIX = 0x1000000;
 
     public Map<String, CommandDataVersions> commands;
     public final Map<String, List<String>> softEnums = new HashMap<>();
@@ -73,15 +59,6 @@ public class AvailableCommandsPacket extends DataPacket {
             postFixes.add(getString());
         }
 
-        ToIntFunction<BinaryStream> indexReader;
-        if (enumValues.size() < 256) {
-            indexReader = READ_BYTE;
-        } else if (enumValues.size() < 65536) {
-            indexReader = READ_SHORT;
-        } else {
-            indexReader = READ_INT;
-        }
-
         len = (int) getUnsignedVarInt();
         while (len-- > 0) {
             String enumName = getString();
@@ -90,7 +67,15 @@ public class AvailableCommandsPacket extends DataPacket {
             List<String> values = new ArrayList<>();
 
             while (enumLength-- > 0) {
-                int index = indexReader.applyAsInt(this);
+                int index;
+
+                if (enums.size() < 256) {
+                    index = getByte();
+                } else if (enums.size() < 65536) {
+                    index = getShort();
+                } else {
+                    index = getLInt();
+                }
 
                 String enumValue;
 
@@ -134,20 +119,11 @@ public class AvailableCommandsPacket extends DataPacket {
 
                     CommandParameter parameter = new CommandParameter(paramName, optional);
 
-
-                    if ((type & ARG_FLAG_POSTFIX) != 0) {
-                        parameter.postFix = postFixes.get(type & 0xffff);
-                    } else if ((type & ARG_FLAG_VALID) == 0) {
-                        throw new IllegalStateException("Invalid parameter type received");
-                    } else {
+                    if ((type & ARG_FLAG_ENUM) != 0) {
                         int index = type & 0xffff;
-                        if ((type & ARG_FLAG_ENUM) != 0) {
-                            parameter.enumData = enums.get(index);
-                        } else if ((type & ARG_FLAG_SOFT_ENUM) != 0) {
-                            // TODO: 22/01/2019 soft enums
-                        } else {
-                            throw new IllegalStateException("Unknown parameter type!");
-                        }
+                        parameter.enumData = enums.get(index);
+                    } else if ((type & ARG_FLAG_VALID) == 0) {
+                        parameter.postFix = postFixes.get(type & 0xffff);
                     }
 
                     overload.input.parameters[i] = parameter;
@@ -174,51 +150,46 @@ public class AvailableCommandsPacket extends DataPacket {
     public void encode() {
         this.reset();
 
-        LinkedHashSet<String> enumValuesSet = new LinkedHashSet<>();
-        LinkedHashSet<String> postFixesSet = new LinkedHashSet<>();
-        LinkedHashSet<CommandEnum> enumsSet = new LinkedHashSet<>();
+        LinkedHashSet<String> enumValues = new LinkedHashSet<>();
+        LinkedHashSet<String> postFixes = new LinkedHashSet<>();
+        LinkedHashSet<CommandEnum> enums = new LinkedHashSet<>();
 
         commands.forEach((name, data) -> {
             CommandData cmdData = data.versions.get(0);
 
             if (cmdData.aliases != null) {
-                enumsSet.add(cmdData.aliases);
+                enums.add(new CommandEnum(cmdData.aliases.getName(), cmdData.aliases.getValues()));
 
-                enumValuesSet.addAll(cmdData.aliases.getValues());
+                enumValues.addAll(cmdData.aliases.getValues());
             }
 
             for (CommandOverload overload : cmdData.overloads.values()) {
                 for (CommandParameter parameter : overload.input.parameters) {
                     if (parameter.enumData != null) {
-                        enumsSet.add(parameter.enumData);
+                        enums.add(new CommandEnum(parameter.enumData.getName(), parameter.enumData.getValues()));
 
-                        enumValuesSet.addAll(parameter.enumData.getValues());
+                        enumValues.addAll(parameter.enumData.getValues());
                     }
 
                     if (parameter.postFix != null) {
-                        postFixesSet.add(parameter.postFix);
+                        postFixes.add(parameter.postFix);
                     }
                 }
             }
         });
 
-        List<String> enumValues = new ArrayList<>(enumValuesSet);
-        List<CommandEnum> enums = new ArrayList<>(enumsSet);
-        List<String> postFixes = new ArrayList<>(postFixesSet);
+        List<String> enumIndexes = new ArrayList<>(enumValues);
+        List<String> enumDataIndexes = enums.stream().map(CommandEnum::getName).collect(Collectors.toList());
+        List<String> fixesIndexes = new ArrayList<>(postFixes);
 
         this.putUnsignedVarInt(enumValues.size());
-        enumValues.forEach(this::putString);
+        for (String enumValue : enumValues) {
+            putString(enumValue);
+        }
 
         this.putUnsignedVarInt(postFixes.size());
-        postFixes.forEach(this::putString);
-
-        ObjIntConsumer<BinaryStream> indexWriter;
-        if (enumValues.size() < 256) {
-            indexWriter = WRITE_BYTE;
-        } else if (enumValues.size() < 65536) {
-            indexWriter = WRITE_SHORT;
-        } else {
-            indexWriter = WRITE_INT;
+        for (String postFix : postFixes) {
+            putString(postFix);
         }
 
         this.putUnsignedVarInt(enums.size());
@@ -229,13 +200,19 @@ public class AvailableCommandsPacket extends DataPacket {
             putUnsignedVarInt(values.size());
 
             for (String val : values) {
-                int i = enumValues.indexOf(val);
+                int i = enumIndexes.indexOf(val);
 
                 if (i < 0) {
                     throw new IllegalStateException("Enum value '" + val + "' not found");
                 }
 
-                indexWriter.accept(this, i);
+                if (enums.size() < 256) {
+                    putByte((byte) i);
+                } else if (enums.size() < 65536) {
+                    putShort(i);
+                } else {
+                    putLInt(i);
+                }
             }
         });
 
@@ -249,7 +226,7 @@ public class AvailableCommandsPacket extends DataPacket {
             putByte((byte) data.flags);
             putByte((byte) data.permission);
 
-            putLInt(data.aliases == null ? -1 : enums.indexOf(data.aliases));
+            putLInt(data.aliases == null ? -1 : enumDataIndexes.indexOf(data.aliases.getName()));
 
             putUnsignedVarInt(data.overloads.size());
             for (CommandOverload overload : data.overloads.values()) {
@@ -258,20 +235,18 @@ public class AvailableCommandsPacket extends DataPacket {
                 for (CommandParameter parameter : overload.input.parameters) {
                     putString(parameter.name);
 
-                    int type = 0;
-                    if (parameter.postFix != null) {
-                        int i = postFixes.indexOf(parameter.postFix);
+                    int type;
+                    if (parameter.enumData != null) {
+                        type = ARG_FLAG_ENUM | ARG_FLAG_VALID | enumDataIndexes.indexOf(parameter.enumData.getName());
+                    } else if (parameter.postFix != null) {
+                        int i = fixesIndexes.indexOf(parameter.postFix);
                         if (i < 0) {
                             throw new IllegalStateException("Postfix '" + parameter.postFix + "' isn't in postfix array");
                         }
-                        type = ARG_FLAG_POSTFIX | i;
+
+                        type = (parameter.type.getId() << 24) | i | ARG_FLAG_VALID;
                     } else {
-                        type |= ARG_FLAG_VALID;
-                        if (parameter.enumData != null) {
-                            type |= ARG_FLAG_ENUM | enums.indexOf(parameter.enumData);
-                        } else {
-                            type |= parameter.type.getId();
-                        }
+                        type = parameter.type.getId() | ARG_FLAG_VALID;
                     }
 
                     putLInt(type);
