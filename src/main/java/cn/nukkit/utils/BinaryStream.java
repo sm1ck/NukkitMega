@@ -11,6 +11,12 @@ import cn.nukkit.math.Vector3f;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import cn.nukkit.nbt.NBTIO;
+import cn.nukkit.nbt.tag.CompoundTag;
+import it.unimi.dsi.fastutil.io.FastByteArrayInputStream;
+
+import java.io.IOException;
+import java.nio.ByteOrder;
 
 /**
  * author: MagicDroidX
@@ -280,8 +286,22 @@ public class BinaryStream {
 
         int nbtLen = this.getLShort();
         byte[] nbt = new byte[0];
-        if (nbtLen > 0) {
+        if (nbtLen < Short.MAX_VALUE) {
             nbt = this.get(nbtLen);
+        } else if (nbtLen == 65535) {
+            int nbtTagCount = (int) getUnsignedVarInt();
+            int offset = getOffset();
+            FastByteArrayInputStream stream = new FastByteArrayInputStream(get());
+            for (int i = 0; i < nbtTagCount; i++) {
+                try {
+                    // TODO: 05/02/2019 This hack is necessary because we keep the raw NBT tag. Try to remove it.
+                    CompoundTag tag = NBTIO.read(stream, ByteOrder.LITTLE_ENDIAN, true);
+                    nbt = NBTIO.write(tag, ByteOrder.LITTLE_ENDIAN, false);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            setOffset(offset + (int) stream.position());
         }
 
         //TODO
