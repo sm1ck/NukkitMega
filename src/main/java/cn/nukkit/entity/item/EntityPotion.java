@@ -7,7 +7,6 @@ import cn.nukkit.level.format.FullChunk;
 import cn.nukkit.level.particle.InstantSpellParticle;
 import cn.nukkit.level.particle.Particle;
 import cn.nukkit.level.particle.SpellParticle;
-import cn.nukkit.math.Vector3;
 import cn.nukkit.nbt.tag.CompoundTag;
 import cn.nukkit.network.protocol.LevelSoundEventPacket;
 import cn.nukkit.potion.Effect;
@@ -41,16 +40,13 @@ public class EntityPotion extends EntityProjectile {
         this.dataProperties.putShort(DATA_POTION_ID, this.potionId);
 
         /*Effect effect = Potion.getEffect(potionId, true); TODO: potion color
-
         if(effect != null) {
             int count = 0;
             int[] c = effect.getColor();
             count += effect.getAmplifier() + 1;
-
             int r = ((c[0] * (effect.getAmplifier() + 1)) / count) & 0xff;
             int g = ((c[1] * (effect.getAmplifier() + 1)) / count) & 0xff;
             int b = ((c[2] * (effect.getAmplifier() + 1)) / count) & 0xff;
-
             this.setDataProperty(new IntEntityData(Entity.DATA_UNKNOWN, (r << 16) + (g << 8) + b));
         }*/
     }
@@ -77,7 +73,7 @@ public class EntityPotion extends EntityProjectile {
 
     @Override
     protected float getGravity() {
-        return 0.1f;
+        return 0.05f;
     }
 
     @Override
@@ -87,10 +83,10 @@ public class EntityPotion extends EntityProjectile {
 
     @Override
     public void onCollideWithEntity(Entity entity) {
-        this.splash();
+        this.splash(entity);
     }
 
-    private void splash() {
+    private void splash(Entity collidedWith) {
         Potion potion = Potion.getPotion(this.potionId);
         PotionCollideEvent event = new PotionCollideEvent(potion, this);
         this.server.getPluginManager().callEvent(event);
@@ -98,6 +94,7 @@ public class EntityPotion extends EntityProjectile {
         if (event.isCancelled()) {
             return;
         }
+
         this.close();
 
         potion = event.getPotion();
@@ -134,13 +131,11 @@ public class EntityPotion extends EntityProjectile {
         this.getLevel().addParticle(particle);
         this.getLevel().addLevelSoundEvent(this, LevelSoundEventPacket.SOUND_GLASS);
 
-        Entity[] entities = this.getLevel().getNearbyEntities(this.getBoundingBox().grow(8.25, 4.24, 8.25));
+        Entity[] entities = this.getLevel().getNearbyEntities(this.getBoundingBox().grow(4.125, 2.125, 4.125));
         for (Entity anEntity : entities) {
             double distance = anEntity.distanceSquared(this);
-
             if (distance < 16) {
-                double d = 1 - Math.sqrt(distance) / 4;
-
+                double d = anEntity.equals(collidedWith) ? 1 : 1 - Math.sqrt(distance) / 4;
                 potion.applyPotion(anEntity, d);
             }
         }
@@ -160,7 +155,7 @@ public class EntityPotion extends EntityProjectile {
             this.kill();
             hasUpdate = true;
         } else if (this.isCollided) {
-            this.splash();
+            this.splash(null);
             hasUpdate = true;
         }
 
