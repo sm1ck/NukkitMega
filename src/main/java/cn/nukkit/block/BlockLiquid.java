@@ -273,13 +273,12 @@ public abstract class BlockLiquid extends BlockTransparentMeta {
 
     protected void flowIntoBlock(Block block, int newFlowDecay) {
         if (this.canFlowInto(block) && !(block instanceof BlockLiquid)) {
-            if (block.getId() > 0) {
-                this.level.useBreakOn(block);
-            }
-            //Block to = getBlock(newFlowDecay);
             LiquidFlowEvent event = new LiquidFlowEvent(block, this, newFlowDecay);
             level.getServer().getPluginManager().callEvent(event);
             if (!event.isCancelled()) {
+                if (block.getId() > 0) {
+                    this.level.useBreakOn(block);
+                }
                 this.level.setBlock(block, getBlock(newFlowDecay), true, true);
                 this.level.scheduleUpdate(block, this.tickRate());
             }
@@ -304,12 +303,12 @@ public abstract class BlockLiquid extends BlockTransparentMeta {
             } else if (j == 3) {
                 ++z;
             }
-            long hash = Level.blockHash((int) x, (int) y, (int) z);
+            long hash = Level.blockHash(x, y, z);
             if (!this.flowCostVisited.containsKey(hash)) {
-                Block blockSide = this.level.getBlock((int) x, (int) y, (int) z);
+                Block blockSide = this.level.getBlock(x, y, z);
                 if (!this.canFlowInto(blockSide)) {
                     this.flowCostVisited.put(hash, BLOCKED);
-                } else if (this.level.getBlock((int) x, (int) y - 1, (int) z).canBeFlowedInto()) {
+                } else if (this.level.getBlock(x, y - 1, z).canBeFlowedInto()) {
                     this.flowCostVisited.put(hash, CAN_FLOW_DOWN);
                 } else {
                     this.flowCostVisited.put(hash, CAN_FLOW);
@@ -324,7 +323,7 @@ public abstract class BlockLiquid extends BlockTransparentMeta {
             if (accumulatedCost >= maxCost) {
                 continue;
             }
-            int realCost = this.calculateFlowCost((int) x, (int) y, (int) z, accumulatedCost + 1, maxCost, originOpposite, j ^ 0x01);
+            int realCost = this.calculateFlowCost(x, y, z, accumulatedCost + 1, maxCost, originOpposite, j ^ 0x01);
             if (realCost < cost) {
                 cost = realCost;
             }
@@ -366,7 +365,6 @@ public abstract class BlockLiquid extends BlockTransparentMeta {
             Block block = this.level.getBlock(x, y, z);
             if (!this.canFlowInto(block)) {
                 this.flowCostVisited.put(Level.blockHash(x, y, z), BLOCKED);
-                continue;
             } else if (this.level.getBlock(x, y - 1, z).canBeFlowedInto()) {
                 this.flowCostVisited.put(Level.blockHash(x, y, z), CAN_FLOW_DOWN);
                 flowCost[j] = maxCost = 0;

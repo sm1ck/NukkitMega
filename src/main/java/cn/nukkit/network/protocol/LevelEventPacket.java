@@ -72,6 +72,11 @@ public class LevelEventPacket extends DataPacket {
     public static final int EVENT_PARTICLE_SPAWN = 2004;
     public static final int EVENT_PARTICLE_BONEMEAL = 2005;
 
+    public static final int EVENT_PARTICLE_PROJECTILE_HIT = 2009;
+    public static final int EVENT_PARTICLE_DRAGON_EGG_TELEPORT = 2010;
+
+    public static final int EVENT_PARTICLE_ENDERMAN_TELEPORT = 2013;
+
     public static final int EVENT_START_RAIN = 3001;
     public static final int EVENT_START_THUNDER = 3002;
     public static final int EVENT_STOP_RAIN = 3003;
