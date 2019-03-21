@@ -251,6 +251,7 @@ public class AvailableCommandsPacket extends DataPacket {
 
                     putLInt(type);
                     putBoolean(parameter.optional);
+                    putByte((byte) 0);
                 }
             }
         });
